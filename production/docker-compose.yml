@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  ytt:
+    image: ytt:latest
+    container_name: ytt
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - CORS_ORIGINS=["http://localhost:8000","http://127.0.0.1:8000"]
+      - LIBRETRANSLATE_URL=http://libretranslate:5000
+    networks:
+      - ytt-network
+    volumes:
+      - ./data:/app/data
+    user: "1000:1000"  # Change to match your user's UID:GID
+
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: libretranslate
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - LT_LOAD_ONLY=en,es,fr,de,it,pt,nl,pl,ru,zh,ja,ar
+      - LT_THREADS=4
+    networks:
+      - ytt-network
+    volumes:
+      - ./libretranslate-data:/home/libretranslate/.local
+
+networks:
+  ytt-network:
+    driver: bridge

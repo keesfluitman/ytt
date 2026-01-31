@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# Node modules and build artifacts
+frontend/node_modules
+frontend/.svelte-kit
+frontend/build
+frontend/.env
+frontend/.env.local
+
+# Python cache and virtual environments
+backend/__pycache__
+backend/.pytest_cache
+backend/venv
+backend/.venv
+backend/.env
+
+# Data directories (will be mounted as volumes)
+data/
+backend/data/
+
+# Development files
+*.md
+README*
+CHANGELOG*
+.vscode
+.idea
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker files (not needed inside container)
+docker-compose*.yml
+Dockerfile*
+
+# CI/CD
+.github/
+
+# Other
+*.tmp
+*.temp
+.coverage
