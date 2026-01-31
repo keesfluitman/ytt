@@ -1,160 +1,109 @@
 # YTT - YouTube Transcript Translator
 
-<div align="center">
+A simple tool for learning languages through YouTube videos. 
 
-![YTT Logo](https://img.shields.io/badge/YTT-YouTube_Transcript_Translator-red?style=for-the-badge&logo=youtube)
+## What is this?
 
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://www.docker.com/)
-[![SvelteKit](https://img.shields.io/badge/SvelteKit-5-FF3E00?style=flat-square&logo=svelte)](https://kit.svelte.dev/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Carbon Design](https://img.shields.io/badge/Carbon_Design-v0.99-0F62FE?style=flat-square&logo=ibm)](https://carbondesignsystem.com/)
-[![LibreTranslate](https://img.shields.io/badge/LibreTranslate-Integrated-4CAF50?style=flat-square)](https://github.com/LibreTranslate/LibreTranslate)
+YTT is a hobby project that does one thing: **helps you learn languages by making it easy to read YouTube transcripts alongside their translations**. 
 
-A modern, self-hosted web application for fetching, translating, and managing YouTube video transcripts.
+That's it! No fancy features, no database - just JSON files storing your transcripts. It's a tool built for personal use that you might find handy too.
 
-[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Documentation](#documentation) • [Contributing](#contributing)
+## Why use it?
 
-</div>
+If you're learning a language through YouTube videos (documentaries, talks, etc.), you've probably wanted to:
+- See the transcript without YouTube's tiny subtitle box
+- Have the translation right next to the original text
+- Save interesting videos to review later
+- Not rely on external services that might disappear
 
-## 📺 Overview
+This tool does exactly that, nothing more, nothing less.
 
-YTT (YouTube Transcript Translator) is a powerful tool that allows you to:
-- Fetch transcripts from any YouTube video
-- Automatically translate them to your preferred language
-- Edit and review translations side-by-side
-- Manage your translation history
-- Export transcripts in various formats (coming soon)
+## Features
 
-Perfect for researchers, content creators, language learners, and anyone who needs to work with multilingual video content.
+What it does:
+- Fetches transcripts from YouTube videos
+- Translates them using LibreTranslate (runs locally, no API keys!)
+- Shows original and translation side-by-side
+- Saves everything in JSON files (no database needed)
+- Works on mobile too (paragraph-by-paragraph view)
+- Has a fullscreen reading mode
+- Remembers your translation history
 
-## ✨ Features
+## Installation
 
-### Core Functionality
-- 🎬 **YouTube Integration** - Fetch transcripts from any public YouTube video
-- 🌐 **Automatic Translation** - Powered by LibreTranslate (self-hosted, no API keys required)
-- 📝 **Edit Mode** - Review and edit translations with synchronized paragraph scrolling
-- 📚 **History Management** - Save, search, and manage all your translations
-- 👁️ **View Modes** - Side-by-side or paragraph-by-paragraph viewing
-- 📱 **Mobile Responsive** - Optimized for desktop, tablet, and mobile devices
+### Quick Start (Build from source)
 
-### UI/UX Features
-- 🎨 **Carbon Design System** - Professional IBM design language
-- 🌙 **Dark/Light Mode** - (Coming soon)
-- 🖥️ **Fullscreen Mode** - Distraction-free reading experience
-- 🔗 **Paragraph Linking** - Synchronized scrolling between original and translation
-- 📍 **Rail Navigation** - Space-efficient navigation that expands on hover
-
-### Technical Features
-- 🐳 **Docker Ready** - Single container deployment with all dependencies
-- 🔒 **Privacy First** - Self-hosted solution, your data stays with you
-- ⚡ **Fast & Efficient** - Built with SvelteKit 5 and FastAPI
-- 🔄 **No API Keys** - Uses self-hosted LibreTranslate
-
-## 🚀 Quick Start
-
-### Using Docker Compose (Recommended)
+Since there's no published Docker image yet, you'll need to build it yourself. Don't worry, it's straightforward:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ytt.git
+git clone https://github.com/keesfluitman/ytt.git
 cd ytt
 ```
 
-2. Copy the example environment file:
+2. Build the Docker image:
 ```bash
-cp production/.env.example production/.env
+docker build -t ytt:latest .
 ```
 
-3. Start the services:
+3. Run with docker-compose:
 ```bash
 cd production
+cp .env.example .env  # Optional: adjust settings
 docker compose up -d
 ```
 
-4. Access YTT at `http://localhost:8000`
+4. Open `http://localhost:8000` in your browser
 
-That's it! YTT and LibreTranslate are now running.
+That's it! The first startup takes a bit longer as LibreTranslate downloads its language models.
 
-## 📦 Installation
-
-### Prerequisites
+### What you need
 - Docker and Docker Compose
-- 4GB RAM minimum (for LibreTranslate models)
-- 10GB disk space (for container images and translation models)
+- About 4GB RAM (LibreTranslate needs this for language models)
+- About 10GB disk space
 
-### Detailed Setup
+### Using your own LibreTranslate
 
-1. **Clone and Configure**
-```bash
-git clone https://github.com/yourusername/ytt.git
-cd ytt/production
-cp .env.example .env
-```
-
-2. **Edit Configuration** (optional)
-```bash
-nano .env
-# Adjust CORS_ORIGINS if needed for your domain
-```
-
-3. **Build and Deploy**
-```bash
-# Using the deployment script
-./deploy.sh
-
-# Or manually with docker compose
-docker compose up -d
-```
-
-4. **Verify Installation**
-```bash
-# Check if services are running
-docker compose ps
-
-# View logs
-docker compose logs -f
-```
-
-### Using External LibreTranslate
-
-If you already have a LibreTranslate instance:
+If you already run LibreTranslate somewhere:
 
 1. Edit `production/.env`:
 ```env
-LIBRETRANSLATE_URL=https://translate.your-domain.com
+LIBRETRANSLATE_URL=https://your-translate-server.com
 ```
 
-2. Remove the LibreTranslate service from `docker-compose.yml`
+2. Comment out the LibreTranslate service in `docker-compose.yml`
 
-3. Deploy only YTT:
+3. Run just YTT:
 ```bash
 docker compose up -d ytt
 ```
 
-## 🛠️ Development
+## Development
 
-### Local Development Setup
+Want to run it locally without Docker?
 
-1. **Backend Setup**
+### Backend
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload
 ```
 
-2. **Frontend Setup**
+### Frontend
 ```bash
 cd frontend
 pnpm install
 pnpm dev
 ```
 
-3. **LibreTranslate** (for translation features)
+### LibreTranslate
 ```bash
 docker run -d -p 5000:5000 libretranslate/libretranslate
 ```
+
+Then open `http://localhost:5173` (frontend dev server)
 
 ### Project Structure
 ```
@@ -169,19 +118,18 @@ ytt/
 │   │   └── models/  # Data models
 ├── production/       # Production deployment files
 │   ├── docker-compose.yml
-│   ├── deploy.sh
 │   └── .env.example
-└── docs/            # Documentation
+└── Dockerfile        # Single container build
 ```
 
-### Technology Stack
-- **Frontend**: SvelteKit 5, Carbon Design System v0.99
-- **Backend**: FastAPI, Python 3.11+
-- **Translation**: LibreTranslate
-- **Container**: Docker, multi-stage builds
-- **Database**: SQLite (local file storage)
+### Tech Stack
+- Frontend: SvelteKit 5 (with the new runes!)
+- Backend: FastAPI
+- UI: Carbon Design System (the v0.99 one, not the fancy new one)
+- Translation: LibreTranslate
+- Storage: JSON files in `data/` folder
 
-## 📖 Documentation
+## API Documentation
 
 ### API Endpoints
 
@@ -242,18 +190,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [SvelteKit](https://kit.svelte.dev/) - The web framework
 - [FastAPI](https://fastapi.tiangolo.com/) - The API framework
 
-## 💬 Support
+## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ytt/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ytt/discussions)
-- **Email**: your-email@example.com
+- **Issues**: [GitHub Issues](https://github.com/keesfluitman/ytt/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/keesfluitman/ytt/discussions)
 
 ---
 
-<div align="center">
-
-Made with ❤️ by the YTT Team
-
-[Report Bug](https://github.com/yourusername/ytt/issues) • [Request Feature](https://github.com/yourusername/ytt/issues)
-
-</div>
+Made for learning languages, one YouTube video at a time.
