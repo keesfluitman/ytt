@@ -10,31 +10,23 @@
   - Run `svelte-autofixer` tool to validate your Svelte code
 
 ## 🎨 IMPORTANT: CARBON DESIGN SYSTEM USAGE
-**This project uses Carbon Components Svelte v0.99.1 - Understand the limitations!**
-
-### ⚠️ CRITICAL: Carbon v0.99.1 Uses Hardcoded CSS
-**carbon-components-svelte v0.99.1 does NOT support CSS variables like Carbon v11!**
-- ❌ CSS variables (--cds-spacing-*, --cds-ui-*) **DO NOT EXIST** in v0.99.1
-- ✅ Use hardcoded pixel values that match Carbon's design system
-- ✅ Carbon's white.css provides ALL typography, colors, and component styling
-- ✅ Focus on using Carbon components, not CSS variables
+**This project uses Carbon Components Svelte v0.99.1.**
 
 ### Before Writing ANY Custom CSS:
 1. **FIRST** check `docs/carbon-reference/COMPONENT_CATALOG.md` for available components
 2. **SECOND** check `docs/carbon-reference/USAGE_GUIDE.md` for implementation patterns  
 3. **THIRD** check `docs/carbon-reference/COMPONENT_EXAMPLES.md` for copy-paste examples
-4. **FOURTH** check `docs/carbon-reference/CSS_UTILITIES.md` for spacing values (but use hardcoded px!)
+4. **FOURTH** check `docs/carbon-reference/CSS_UTILITIES.md` for spacing and design tokens
 
 ### Carbon Reference Documentation:
 - **[Component Catalog](./docs/carbon-reference/COMPONENT_CATALOG.md)** - Complete list of 71+ components with descriptions
 - **[Usage Guide](./docs/carbon-reference/USAGE_GUIDE.md)** - Best practices and common patterns
 - **[Component Examples](./docs/carbon-reference/COMPONENT_EXAMPLES.md)** - Copy-paste ready code snippets
-- **[CSS Utilities](./docs/carbon-reference/CSS_UTILITIES.md)** - Carbon spacing scale (use px values, not variables!)
+- **[CSS Utilities](./docs/carbon-reference/CSS_UTILITIES.md)** - Carbon spacing scale and design tokens
 
 ### CSS Architecture Principles:
 - ✅ **Minimal Custom CSS**: Only write CSS for app-specific features (fullscreen, paragraph linking, etc.)
-- ✅ **Let Carbon Handle Styling**: Typography, colors, hover states, focus states all handled by white.css
-- ✅ **Hardcoded Values**: Use `16px` not `var(--cds-spacing-05)` (which doesn't exist)
+- ✅ **Let Carbon Handle Styling**: Typography, colors, hover states, focus states all handled by the theme CSS
 - ✅ **Component-First**: Use `Tile`, `Button`, `Grid` etc. instead of custom divs
 - ✅ **Rail Navigation**: Use space-efficient rail SideNav instead of full-width sidebars
 
@@ -46,9 +38,7 @@
 - **Rail navigation**: Minimal space usage (48px collapsed, expands on hover)
 
 ### Common Mistakes to AVOID:
-- ❌ Using CSS variables (`var(--cds-*)`) → Use hardcoded values
-- ❌ Setting text colors on headings → Carbon white.css handles this
-- ❌ Custom spacing variables → Use hardcoded px values from Carbon scale
+- ❌ Setting text colors on headings → Carbon theme CSS handles this
 - ❌ Writing custom CSS for cards → Use `Tile` components
 - ❌ Creating custom tables → Use `DataTable` with built-in features
 - ❌ Custom grid/flexbox → Use `Grid`, `Row`, `Column` components
@@ -190,11 +180,9 @@ services:
    - **Compatibility**: Works with existing paragraph linking and fullscreen modes
 
 13. **Carbon Design System Architecture Optimization**: Clean CSS implementation
-   - **Discovery**: Carbon v0.99.1 uses hardcoded CSS, not CSS variables like v11
    - **CSS Minimization**: Reduced custom CSS to only app-specific features (fullscreen, paragraph linking)
    - **Layout Fixes**: Resolved horizontal scrolling by adjusting Grid column spans for SideNav
    - **Fullscreen Enhancement**: Centered layout on large displays with 1920px max-width for readability
-   - **Documentation**: Updated CSS_UTILITIES.md to reflect v0.99.1 reality and limitations
 
 14. **Navigation System Redesign**: Modern rail-based navigation
    - **Rail SideNav**: Converted to space-efficient rail variant (48px collapsed, ~256px expanded)
