@@ -123,7 +123,8 @@
 			const response = await translationAPI.translate({
 				text: originalText,
 				source_lang: sourceLang,
-				target_lang: targetLang
+				target_lang: targetLang,
+				entry_id: videoInfo?.entry_id
 			});
 			
 			translatedText = response.translated_text;
@@ -168,9 +169,14 @@
 				errorMessage = `No transcript found for "${sourceLang}". Available: ${langs}...`;
 			}
 			
-			// If we got a target transcript from YouTube, show it
+			// If we got a translated transcript, show it
 			if (response.target_transcript_processed || response.target_transcript_raw) {
 				translatedText = response.target_transcript_processed || response.target_transcript_raw || "";
+			}
+			
+			// Show translation error if translation failed (transcript still fetched)
+			if (response.translation_error) {
+				errorMessage = response.translation_error;
 			}
 			
 			// Update source language if it was detected

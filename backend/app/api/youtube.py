@@ -14,7 +14,7 @@ class YouTubeTranscriptRequest(BaseModel):
     target_lang: Optional[str] = None
     use_cookies: str = "none"  # none, firefox, chrome
     merge_lines: bool = True  # Whether to merge subtitle lines into paragraphs
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -22,7 +22,7 @@ class YouTubeTranscriptRequest(BaseModel):
                 "source_lang": "en",
                 "target_lang": "de",
                 "use_cookies": "firefox",
-                "merge_lines": True
+                "merge_lines": True,
             }
         }
 
@@ -41,9 +41,9 @@ async def fetch_youtube_transcript(request: YouTubeTranscriptRequest):
             source_lang=request.source_lang,
             target_lang=request.target_lang,
             use_cookies=request.use_cookies,
-            merge_lines=request.merge_lines
+            merge_lines=request.merge_lines,
         )
-        
+
         # Return both raw and processed transcripts
         response = {
             "video_id": result["video_id"],
@@ -57,15 +57,18 @@ async def fetch_youtube_transcript(request: YouTubeTranscriptRequest):
             "target_lang": result["target_lang"],
             "target_transcript_raw": result["target_transcript_raw"],
             "target_transcript_processed": result["target_transcript_processed"],
-            "entry_id": result.get("entry_id"),  # Include entry_id for history tracking
-            "cached": result.get("cached", False)  # Include cached status
+            "entry_id": result.get("entry_id"),
+            "cached": result.get("cached", False),
+            "translation_error": result.get("translation_error"),
         }
-        
+
         return response
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching transcript: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching transcript: {str(e)}"
+        )
 
 
 @router.post("/youtube/info")
@@ -74,18 +77,24 @@ async def get_youtube_video_info(request: YouTubeInfoRequest):
     video_id = youtube_service.extract_video_id(request.url)
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
-    
+
     try:
-        video_info = await youtube_service.get_video_info(request.url, request.use_cookies)
-        available_subs = await youtube_service.check_available_subtitles(request.url, request.use_cookies)
-        
+        video_info = await youtube_service.get_video_info(
+            request.url, request.use_cookies
+        )
+        available_subs = await youtube_service.check_available_subtitles(
+            request.url, request.use_cookies
+        )
+
         return {
             "video_id": video_id,
             "video_info": video_info,
-            "available_subtitles": available_subs
+            "available_subtitles": available_subs,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting video info: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error getting video info: {str(e)}"
+        )
 
 
 @router.get("/youtube/extract-id")
@@ -94,5 +103,5 @@ async def extract_video_id(url: str = Query(..., description="YouTube URL")):
     video_id = youtube_service.extract_video_id(url)
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
-    
+
     return {"video_id": video_id, "url": url}

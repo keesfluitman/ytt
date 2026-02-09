@@ -83,5 +83,8 @@ temp/
 docker-deploy.sh
 deploy-frontend.sh
 
+# AI/tool config directories
+.opencode/
+
 # Development notes and documentation
 docs/

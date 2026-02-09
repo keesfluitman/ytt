@@ -17,14 +17,14 @@ class TranslationRequest(BaseModel):
     provider: TranslationProvider = TranslationProvider.LIBRETRANSLATE
     preserve_formatting: bool = True
     context: Optional[str] = None
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "text": "Bonjour le monde",
                 "source_lang": "fr",
                 "target_lang": "en",
-                "provider": "libretranslate"
+                "provider": "libretranslate",
             }
         }
 
@@ -39,7 +39,7 @@ class TranslationResponse(BaseModel):
     confidence: Optional[float] = None
     created_at: datetime = Field(default_factory=datetime.now)
     processing_time: Optional[float] = None
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -51,7 +51,7 @@ class TranslationResponse(BaseModel):
                 "provider": "libretranslate",
                 "confidence": 0.95,
                 "created_at": "2024-01-27T10:00:00",
-                "processing_time": 0.5
+                "processing_time": 0.5,
             }
         }
 
@@ -62,7 +62,7 @@ class FileUploadResponse(BaseModel):
     size: int
     text_content: str
     detected_format: str
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -70,7 +70,7 @@ class FileUploadResponse(BaseModel):
                 "content_type": "text/plain",
                 "size": 1024,
                 "text_content": "This is the extracted text...",
-                "detected_format": "txt"
+                "detected_format": "txt",
             }
         }
 
@@ -79,7 +79,7 @@ class LanguageDetectionResponse(BaseModel):
     detected_language: str
     confidence: float
     alternatives: Optional[List[dict]] = None
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -87,8 +87,8 @@ class LanguageDetectionResponse(BaseModel):
                 "confidence": 0.98,
                 "alternatives": [
                     {"language": "es", "confidence": 0.15},
-                    {"language": "it", "confidence": 0.10}
-                ]
+                    {"language": "it", "confidence": 0.10},
+                ],
             }
         }
 
@@ -110,6 +110,7 @@ class TranslationHistory(BaseModel):
     video_info: Optional[dict] = None
     type: Optional[str] = None  # "text", "youtube", "file"
     updated_at: Optional[datetime] = None
-    
+    folder_path: Optional[str] = None
+
     class Config:
         from_attributes = True

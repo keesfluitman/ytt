@@ -10,12 +10,14 @@
     } from 'carbon-components-svelte';
     import { Save, Reset, Download, Upload } from 'carbon-icons-svelte';
     import { settings, loadSettings, updateSettings, resetSettings } from '$lib/stores/settings.js';
+    import { getVersion } from '$lib/api';
     
     let currentSettings = $state({});
     let originalSettings = $state({});
     let notification = $state({ show: false, kind: 'success', title: '', subtitle: '' });
     let resetModalOpen = $state(false);
     let hasChanges = $derived(JSON.stringify(currentSettings) !== JSON.stringify(originalSettings));
+    let versionInfo = $state({ version: '', build_date: '', git_commit: '' });
     
     const languages = [
         { value: 'en', text: 'English' },
@@ -57,6 +59,11 @@
         if (loaded) {
             currentSettings = { ...loaded };
             originalSettings = { ...loaded };
+        }
+        try {
+            versionInfo = await getVersion();
+        } catch (e) {
+            // Version info is non-critical
         }
     });
     
@@ -385,6 +392,25 @@
             </div>
         </Column>
     </Row>
+    
+    <!-- About / Version Info -->
+    {#if versionInfo.version}
+    <Row>
+        <Column>
+            <div class="version-info">
+                <span>YTT v{versionInfo.version}</span>
+                {#if versionInfo.build_date && versionInfo.build_date !== 'dev' && versionInfo.build_date !== 'unknown'}
+                    <span>Built {new Date(versionInfo.build_date).toLocaleDateString()} {new Date(versionInfo.build_date).toLocaleTimeString()}</span>
+                {:else}
+                    <span>Development build</span>
+                {/if}
+                {#if versionInfo.git_commit && versionInfo.git_commit !== 'dev' && versionInfo.git_commit !== 'unknown'}
+                    <span>Commit {versionInfo.git_commit}</span>
+                {/if}
+            </div>
+        </Column>
+    </Row>
+    {/if}
 </Grid>
 
 <Modal
@@ -412,6 +438,16 @@
         border-top: 1px solid #e0e0e0;
     }
     
+    .version-info {
+        display: flex;
+        gap: 16px;
+        margin-top: 32px;
+        padding-top: 16px;
+        border-top: 1px solid #e0e0e0;
+        font-size: 0.75rem;
+        color: #a8a8a8;
+    }
+    
     @media (max-width: 768px) {
         .button-group {
             flex-direction: column;
@@ -420,6 +456,11 @@
         .button-group :global(.bx--btn) {
             width: 100%;
             max-width: none;
+        }
+        
+        .version-info {
+            flex-direction: column;
+            gap: 4px;
         }
     }
 </style>

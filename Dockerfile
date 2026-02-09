@@ -19,10 +19,9 @@ RUN pnpm run build
 # Stage 2: Production runtime with Python + FastAPI
 FROM python:3.11-slim
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (curl for healthcheck, no ffmpeg needed - only fetching subtitles)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -37,6 +36,11 @@ COPY backend/ .
 
 # Copy built frontend static files from stage 1
 COPY --from=frontend-builder /app/frontend/build ./static
+
+# Build info (injected at build time via --build-arg)
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+RUN echo "{\"version\": \"1.0.0\", \"build_date\": \"${BUILD_DATE}\", \"git_commit\": \"${GIT_COMMIT}\"}" > build-info.json
 
 # Create data directories and set up user
 RUN mkdir -p data/uploads data/transcripts
