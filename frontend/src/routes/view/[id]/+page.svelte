@@ -157,7 +157,7 @@ ${translatedText}` : ''}
 	// Handle escape key to exit fullscreen
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && isFullscreen) {
-			isFullscreen = false;
+			toggleFullscreen();
 		}
 	}
 
@@ -174,25 +174,45 @@ ${translatedText}` : ''}
 		
 		const sourcePanel = event.target as HTMLElement;
 		const targetPanel = isOriginal ? translatedPanel : originalPanel;
-		
 		if (!sourcePanel || !targetPanel) return;
 		
-		// Calculate scroll percentage
+		// Mobile fullscreen: sync by paragraph index
+		if (isFullscreen && window.innerWidth <= 768) {
+			const paragraphs = sourcePanel.querySelectorAll('.paragraph');
+			let closestIndex = 0;
+			let closestDistance = Infinity;
+			
+			const panelRect = sourcePanel.getBoundingClientRect();
+			paragraphs.forEach((p, i) => {
+				const rect = p.getBoundingClientRect();
+				const distance = Math.abs(rect.top - panelRect.top);
+				if (distance < closestDistance) {
+					closestDistance = distance;
+					closestIndex = i;
+				}
+			});
+			
+			hoveredParagraphIndex = closestIndex;
+			
+			const targetParagraphs = targetPanel.querySelectorAll('.paragraph');
+			if (targetParagraphs[closestIndex]) {
+				isScrolling = true;
+				targetParagraphs[closestIndex].scrollIntoView({ block: 'start' });
+				setTimeout(() => { isScrolling = false; }, 300);
+			}
+			return;
+		}
+		
+		// Desktop/non-fullscreen: percentage-based sync
 		const scrollTop = sourcePanel.scrollTop;
 		const scrollHeight = sourcePanel.scrollHeight - sourcePanel.clientHeight;
 		const scrollPercentage = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
 		
-		// Apply to target panel
 		const targetScrollHeight = targetPanel.scrollHeight - targetPanel.clientHeight;
-		const targetScrollTop = scrollPercentage * targetScrollHeight;
+		targetPanel.scrollTop = scrollPercentage * targetScrollHeight;
 		
 		isScrolling = true;
-		targetPanel.scrollTop = targetScrollTop;
-		
-		// Reset flag immediately using requestAnimationFrame
-		requestAnimationFrame(() => {
-			isScrolling = false;
-		});
+		requestAnimationFrame(() => { isScrolling = false; });
 	}
 	
 	// Handle paragraph hover
@@ -400,6 +420,19 @@ ${translatedText}` : ''}
 
 	:global(body.fullscreen-mode .bx--header) {
 		display: none;
+	}
+
+	:global(body.fullscreen-mode .bx--side-nav) {
+		display: none;
+	}
+
+	:global(body.fullscreen-mode) .main-content {
+		padding-left: 0 !important;
+		margin-top: 0 !important;
+	}
+
+	:global(body.fullscreen-mode .bx--content) {
+		padding: 0 !important;
 	}
 
 	:global(.fullscreen) {
@@ -672,6 +705,51 @@ ${translatedText}` : ''}
 		.entry-meta {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+		
+		/* Mobile fullscreen: split screen top/bottom */
+		:global(.fullscreen) :global(.bx--row) {
+			flex-direction: column;
+			height: 100vh;
+		}
+		
+		:global(.fullscreen) :global(.bx--col-sm-4) {
+			max-width: 100%;
+			flex: none;
+			height: 50vh;
+			padding: 0;
+		}
+		
+		:global(.fullscreen) h3 {
+			display: none;
+		}
+		
+		:global(.fullscreen) :global(.bx--tile.text-scroll-tile) {
+			height: 50vh !important;
+			padding: 0;
+		}
+		
+		:global(.fullscreen) .text-content {
+			height: 50vh;
+			padding: 8px;
+			font-size: 0.875rem;
+			/* Scroll-snap for paragraph-by-paragraph reading */
+			scroll-snap-type: y mandatory;
+		}
+		
+		:global(.fullscreen) .paragraph {
+			padding: 8px;
+			margin-bottom: 0 !important;
+			border-left: none;
+			/* Each paragraph fills the panel for one-at-a-time reading */
+			scroll-snap-align: start;
+			min-height: calc(50vh - 16px);
+			box-sizing: border-box;
+		}
+		
+		/* Visual separator between the two halves */
+		:global(.fullscreen) :global(.bx--col-sm-4:first-child) {
+			border-bottom: 1px solid rgba(0, 0, 0, 0.15);
 		}
 	}
 </style>
