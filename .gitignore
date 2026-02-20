@@ -4,19 +4,17 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
-downloads/
+/dist/
+/downloads/
 eggs/
 .eggs/
-# Python virtualenv lib directories (at root level only)
 /lib/
 /lib64/
-parts/
-sdist/
-var/
-wheels/
+/parts/
+/sdist/
+/var/
+/wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -24,8 +22,8 @@ share/python-wheels/
 MANIFEST
 .venv/
 venv/
-ENV/
-env/
+/ENV/
+/env/
 
 # Node
 node_modules/
@@ -37,6 +35,8 @@ yarn-error.log*
 # SvelteKit
 .svelte-kit/
 build/
+
+# Vite
 .vercel/
 .netlify/
 
