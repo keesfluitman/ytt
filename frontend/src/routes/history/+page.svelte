@@ -28,10 +28,14 @@
 		TrashCan,
 		Copy,
 		Download,
-		Edit
+		Edit,
+		Checkmark,
+		Document,
+		Translate
 	} from "carbon-icons-svelte";
 
 	import { historyAPI } from "$lib/api";
+	import { copyToClipboard, formatBothTexts } from "$lib/utils/clipboard";
 	import { onMount } from "svelte";
 
 	// State
@@ -43,6 +47,7 @@
 	let selectedTranslation = $state(null);
 	let showDeleteModal = $state(false);
 	let isDeleting = $state(false);
+	let copiedId = $state<string | null>(null);
 	
 	// Responsive state
 	let isMobile = $state(false);
@@ -155,8 +160,35 @@
 		}
 	}
 
-	function copyToClipboard(text) {
-		navigator.clipboard.writeText(text);
+	// Copy modal state
+	let showCopyModal = $state(false);
+	let copyTarget = $state<any>(null);
+
+	function handleCopy(translation: any) {
+		copyTarget = translation;
+		showCopyModal = true;
+	}
+
+	async function copyContent(type: 'original' | 'translation' | 'both') {
+		if (!copyTarget) return;
+
+		let text = '';
+		if (type === 'original') {
+			text = copyTarget.original_text;
+		} else if (type === 'translation') {
+			text = copyTarget.translated_text;
+		} else {
+			text = formatBothTexts(copyTarget.original_text, copyTarget.translated_text);
+		}
+
+		const success = await copyToClipboard(text);
+		if (success) {
+			copiedId = copyTarget.id;
+			setTimeout(() => { copiedId = null; }, 2000);
+		}
+
+		showCopyModal = false;
+		copyTarget = null;
 	}
 
 	function downloadTranslation(translation) {
@@ -255,7 +287,7 @@
 								<OverflowMenu flipped>
 									<OverflowMenuItem text="View" on:click={() => handleView(translation)} />
 									<OverflowMenuItem text="Edit" on:click={() => handleEdit(translation)} />
-									<OverflowMenuItem text="Copy" on:click={() => copyToClipboard(translation.translated_text)} />
+									<OverflowMenuItem text={copiedId === translation.id ? "Copied!" : "Copy"} on:click={() => handleCopy(translation)} />
 									<OverflowMenuItem text="Download" on:click={() => downloadTranslation(translation)} />
 									<OverflowMenuItem danger text="Delete" on:click={() => handleDelete(translation)} />
 								</OverflowMenu>
@@ -307,9 +339,9 @@
 										<Button
 											kind="ghost"
 											size="sm"
-											iconDescription="Copy text"
-											icon={Copy}
-											on:click={() => copyToClipboard(row.translated_text)}
+											iconDescription={copiedId === row.id ? "Copied!" : "Copy text"}
+											icon={copiedId === row.id ? Checkmark : Copy}
+											on:click={() => handleCopy(row)}
 										/>
 										<Button
 											kind="ghost"
@@ -382,6 +414,56 @@
 		{#if isDeleting}
 			<InlineLoading description="Deleting..." />
 		{/if}
+	{/if}
+</Modal>
+
+<!-- Copy Modal -->
+<Modal
+	passiveModal
+	bind:open={showCopyModal}
+	modalHeading="Copy to Clipboard"
+	on:close={() => { showCopyModal = false; copyTarget = null; }}
+>
+	{#if copyTarget}
+		<div class="copy-modal-content">
+			<h4 class="copy-modal-title">{copyTarget.title}</h4>
+			<p class="copy-meta">
+				{copyTarget.source_lang} → {copyTarget.target_lang} · {copyTarget.provider}
+			</p>
+
+			<div class="copy-options">
+				<Button
+					kind="tertiary"
+					icon={Document}
+					on:click={() => copyContent('original')}
+					disabled={!copyTarget.original_text?.trim()}
+				>
+					Copy Original Text ({copyTarget.original_text?.length || 0} chars)
+				</Button>
+
+				<Button
+					kind="tertiary"
+					icon={Translate}
+					on:click={() => copyContent('translation')}
+					disabled={!copyTarget.translated_text?.trim()}
+				>
+					{#if copyTarget.translated_text?.trim()}
+						Copy Translation ({copyTarget.translated_text.length} chars)
+					{:else}
+						Copy Translation (no translation available)
+					{/if}
+				</Button>
+
+				<Button
+					kind="tertiary"
+					icon={Copy}
+					on:click={() => copyContent('both')}
+					disabled={!copyTarget.original_text?.trim()}
+				>
+					Copy Both ({(copyTarget.original_text?.length || 0) + (copyTarget.translated_text?.length || 0)} chars)
+				</Button>
+			</div>
+		</div>
 	{/if}
 </Modal>
 
@@ -494,6 +576,32 @@
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
+	}
+
+	/* Copy Modal */
+	.copy-modal-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--cds-text-primary);
+		margin: 0 0 var(--cds-spacing-02) 0;
+	}
+
+	.copy-meta {
+		font-size: 0.875rem;
+		color: var(--cds-text-secondary);
+		margin-bottom: var(--cds-spacing-06);
+	}
+
+	.copy-options {
+		display: flex;
+		flex-direction: column;
+		gap: var(--cds-spacing-04);
+	}
+
+	.copy-options :global(.bx--btn) {
+		width: 100%;
+		max-width: none;
+		justify-content: flex-start;
 	}
 
 	/* Responsive Design */

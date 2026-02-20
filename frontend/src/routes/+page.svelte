@@ -18,7 +18,8 @@
 		InlineLoading,
 		Tile,
 		InlineNotification,
-		Toggle
+		Toggle,
+		Modal
 	} from "carbon-components-svelte";
 	
 	import {
@@ -26,11 +27,15 @@
 		DocumentDownload,
 		LogoYoutube,
 		Document,
-		TextAlignJustify
+		TextAlignJustify,
+		View,
+		Copy,
+		Checkmark
 	} from "carbon-icons-svelte";
 
 	import { youtubeAPI, translationAPI } from "$lib/api";
 	import type { YouTubeResponse } from "$lib/api";
+	import { copyToClipboard, formatBothTexts } from "$lib/utils/clipboard";
 	import { onMount } from "svelte";
 
 	// State
@@ -205,6 +210,72 @@
 		} else {
 			originalText = videoInfo.source_transcript_processed || "";
 		}
+	}
+
+	// Export content as text file
+	function exportContent() {
+		if (!originalText && !translatedText) return;
+		
+		const title = videoInfo?.title || 'Translation';
+		const lines = [title];
+		
+		if (videoInfo?.url) lines.push(`URL: ${videoInfo.url}`);
+		lines.push(`Source Language: ${sourceLang}`);
+		lines.push(`Target Language: ${targetLang}`);
+		lines.push('');
+		lines.push('ORIGINAL TEXT:');
+		lines.push(originalText);
+		
+		if (translatedText) {
+			lines.push('');
+			lines.push('TRANSLATED TEXT:');
+			lines.push(translatedText);
+		}
+		
+		const content = lines.join('\n');
+		const blob = new Blob([content], { type: 'text/plain' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `${title.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	// Navigate to view page
+	function goToView() {
+		if (videoInfo?.entry_id) {
+			window.location.href = `/view/${videoInfo.entry_id}`;
+		}
+	}
+
+	// Copy modal
+	let showCopyModal = false;
+	let copiedWhat = "";
+
+	function handleCopy() {
+		showCopyModal = true;
+	}
+
+	async function copyContent(type: 'original' | 'translation' | 'both') {
+		let text = '';
+		if (type === 'original') {
+			text = originalText;
+		} else if (type === 'translation') {
+			text = translatedText;
+		} else {
+			text = formatBothTexts(originalText, translatedText);
+		}
+
+		const success = await copyToClipboard(text);
+		if (success) {
+			copiedWhat = type;
+			setTimeout(() => { copiedWhat = ""; }, 2000);
+		}
+
+		showCopyModal = false;
 	}
 </script>
 
@@ -409,14 +480,32 @@
 			</Column>
 		</Row>
 
-		<!-- Export Button -->
+		<!-- Action Buttons -->
 		<Row>
 			<Column sm={4} md={8} lg={12} xlg={12} max={12}>
 				<div class="export-actions">
+					{#if videoInfo?.entry_id}
+						<Button
+							kind="primary"
+							icon={View}
+							on:click={goToView}
+						>
+							Go to View
+						</Button>
+					{/if}
+					<Button
+						kind="secondary"
+						icon={copiedWhat ? Checkmark : Copy}
+						disabled={!originalText && !translatedText}
+						on:click={handleCopy}
+					>
+						{copiedWhat ? 'Copied!' : 'Copy'}
+					</Button>
 					<Button
 						kind="secondary"
 						icon={DocumentDownload}
 						disabled={!originalText && !translatedText}
+						on:click={exportContent}
 					>
 						Export
 					</Button>
@@ -425,6 +514,52 @@
 		</Row>
 	</Grid>
 </Content>
+
+<!-- Copy Modal -->
+<Modal
+	passiveModal
+	bind:open={showCopyModal}
+	modalHeading="Copy to Clipboard"
+	on:close={() => { showCopyModal = false; }}
+>
+	<div class="copy-modal-content">
+		<h4 class="copy-modal-title">{videoInfo?.title || 'Translation'}</h4>
+		<p class="copy-meta">{sourceLang} → {targetLang}</p>
+
+		<div class="copy-options">
+			<Button
+				kind="tertiary"
+				icon={Document}
+				on:click={() => copyContent('original')}
+				disabled={!originalText?.trim()}
+			>
+				Copy Original Text ({originalText?.length || 0} chars)
+			</Button>
+
+			<Button
+				kind="tertiary"
+				icon={Translate}
+				on:click={() => copyContent('translation')}
+				disabled={!translatedText?.trim()}
+			>
+				{#if translatedText?.trim()}
+					Copy Translation ({translatedText.length} chars)
+				{:else}
+					Copy Translation (no translation available)
+				{/if}
+			</Button>
+
+			<Button
+				kind="tertiary"
+				icon={Copy}
+				on:click={() => copyContent('both')}
+				disabled={!originalText?.trim()}
+			>
+				Copy Both ({(originalText?.length || 0) + (translatedText?.length || 0)} chars)
+			</Button>
+		</div>
+	</div>
+</Modal>
 
 <style>
 	:global(.bx--content) {
@@ -529,7 +664,34 @@
 	.export-actions {
 		display: flex;
 		justify-content: center;
+		gap: var(--cds-spacing-05);
 		margin-top: var(--cds-spacing-07);
+	}
+
+	/* Copy Modal */
+	.copy-modal-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--cds-text-primary);
+		margin: 0 0 var(--cds-spacing-02) 0;
+	}
+
+	.copy-meta {
+		font-size: 0.875rem;
+		color: var(--cds-text-secondary);
+		margin-bottom: var(--cds-spacing-06);
+	}
+
+	.copy-options {
+		display: flex;
+		flex-direction: column;
+		gap: var(--cds-spacing-04);
+	}
+
+	.copy-options :global(.bx--btn) {
+		width: 100%;
+		max-width: none;
+		justify-content: flex-start;
 	}
 
 	/* Responsive adjustments for mobile */

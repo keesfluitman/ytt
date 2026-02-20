@@ -11,11 +11,13 @@
 		Tag,
 		InlineNotification,
 		SkeletonText,
-		ButtonSet
+		ButtonSet,
+		Modal
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, DocumentDownload, Maximize } from 'carbon-icons-svelte';
+	import { ArrowLeft, DocumentDownload, Maximize, Copy, Checkmark, Document, Translate } from 'carbon-icons-svelte';
 	import { goto } from '$app/navigation';
 	import { historyAPI } from '$lib/api';
+	import { copyToClipboard, formatBothTexts } from '$lib/utils/clipboard';
 
 	// Get the entry ID from the URL
 	let entryId = $derived($page.params.id);
@@ -135,6 +137,35 @@ ${translatedText}` : ''}
 		a.click();
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
+	}
+
+	// Copy modal
+	let showCopyModal = $state(false);
+	let copiedWhat = $state('');
+
+	function handleCopy() {
+		showCopyModal = true;
+	}
+
+	async function copyContent(type: 'original' | 'translation' | 'both') {
+		if (!entry) return;
+
+		let text = '';
+		if (type === 'original') {
+			text = getDisplayText(entry, true);
+		} else if (type === 'translation') {
+			text = getDisplayText(entry, false);
+		} else {
+			text = formatBothTexts(getDisplayText(entry, true), getDisplayText(entry, false));
+		}
+
+		const success = await copyToClipboard(text);
+		if (success) {
+			copiedWhat = type;
+			setTimeout(() => { copiedWhat = ''; }, 2000);
+		}
+
+		showCopyModal = false;
 	}
 
 	// Go back to history
@@ -264,6 +295,13 @@ ${translatedText}` : ''}
 								onclick={toggleFullscreen}
 							>
 								Fullscreen
+							</Button>
+							<Button
+								kind="secondary"
+								icon={copiedWhat ? Checkmark : Copy}
+								onclick={handleCopy}
+							>
+								{copiedWhat ? 'Copied!' : 'Copy'}
 							</Button>
 							<Button
 								kind="secondary"
@@ -409,6 +447,56 @@ ${translatedText}` : ''}
 		✕
 	</button>
 {/if}
+
+<!-- Copy Modal -->
+<Modal
+	passiveModal
+	bind:open={showCopyModal}
+	modalHeading="Copy to Clipboard"
+	on:close={() => { showCopyModal = false; }}
+>
+	{#if entry}
+		<div class="copy-modal-content">
+			<h4 class="copy-modal-title">{entry.title}</h4>
+			<p class="copy-meta">
+				{entry.source_lang} → {entry.target_lang} · {entry.provider}
+			</p>
+
+			<div class="copy-options">
+				<Button
+					kind="tertiary"
+					icon={Document}
+					on:click={() => copyContent('original')}
+					disabled={!entry.original_text?.trim()}
+				>
+					Copy Original Text ({entry.original_text?.length || 0} chars)
+				</Button>
+
+				<Button
+					kind="tertiary"
+					icon={Translate}
+					on:click={() => copyContent('translation')}
+					disabled={!entry.translated_text?.trim()}
+				>
+					{#if entry.translated_text?.trim()}
+						Copy Translation ({entry.translated_text.length} chars)
+					{:else}
+						Copy Translation (no translation available)
+					{/if}
+				</Button>
+
+				<Button
+					kind="tertiary"
+					icon={Copy}
+					on:click={() => copyContent('both')}
+					disabled={!entry.original_text?.trim()}
+				>
+					Copy Both ({(entry.original_text?.length || 0) + (entry.translated_text?.length || 0)} chars)
+				</Button>
+			</div>
+		</div>
+	{/if}
+</Modal>
 
 <style>
 	/* MINIMAL CUSTOM CSS - Only what Carbon doesn't provide */
@@ -679,7 +767,33 @@ ${translatedText}` : ''}
 		padding: 32px;
 	}
 	
-	/* 5. Mobile adjustments */
+	/* 5. Copy Modal */
+	.copy-modal-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--cds-text-primary);
+		margin: 0 0 var(--cds-spacing-02) 0;
+	}
+
+	.copy-meta {
+		font-size: 0.875rem;
+		color: var(--cds-text-secondary);
+		margin-bottom: var(--cds-spacing-06);
+	}
+
+	.copy-options {
+		display: flex;
+		flex-direction: column;
+		gap: var(--cds-spacing-04);
+	}
+
+	.copy-options :global(.bx--btn) {
+		width: 100%;
+		max-width: none;
+		justify-content: flex-start;
+	}
+
+	/* 6. Mobile adjustments */
 	@media (max-width: 768px) {
 		:global(.text-scroll-tile) {
 			height: 300px;
