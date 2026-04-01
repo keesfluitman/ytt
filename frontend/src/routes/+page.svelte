@@ -15,6 +15,7 @@
 		Select,
 		SelectItem,
 		Button,
+		Checkbox,
 		InlineLoading,
 		Tile,
 		InlineNotification,
@@ -49,6 +50,7 @@
 	let isFetching = false;
 	let errorMessage = "";
 	let isEditMode = false;  // Track if we're in edit mode
+	let autoTranslate = true;  // Whether to auto-translate when fetching transcript
 	
 	// Display state
 	let originalText = "";
@@ -158,7 +160,7 @@
 			const response = await youtubeAPI.fetchTranscript({
 				url: youtubeUrl,
 				source_lang: sourceLang === "auto" ? "en" : sourceLang,
-				target_lang: targetLang,  // Now includes target language for automatic translation
+				...(autoTranslate ? { target_lang: targetLang } : {}),
 				merge_lines: true
 			});
 			
@@ -315,15 +317,19 @@
 									bind:value={youtubeUrl}
 									helperText="Enter a YouTube video URL to fetch its transcript"
 								/>
-								<div class="button-group">
-									<Button
-										icon={LogoYoutube}
-										on:click={handleFetchTranscript}
-										disabled={!youtubeUrl || isFetching || isLoading}
-									>
-										{isFetching ? 'Fetching...' : 'Fetch Transcript'}
-									</Button>
-								</div>
+							<div class="button-group">
+								<Button
+									icon={LogoYoutube}
+									on:click={handleFetchTranscript}
+									disabled={!youtubeUrl || isFetching || isLoading}
+								>
+									{isFetching ? 'Fetching...' : 'Fetch Transcript'}
+								</Button>
+								<Checkbox
+									labelText="Auto-translate after fetch"
+									bind:checked={autoTranslate}
+								/>
+							</div>
 							</div>
 						</TabContent>
 
@@ -569,6 +575,10 @@
 
 	.button-group {
 		margin-top: var(--cds-spacing-05);
+		display: flex;
+		align-items: center;
+		gap: var(--cds-spacing-06);
+		flex-wrap: wrap;
 	}
 
 	.language-selectors {
