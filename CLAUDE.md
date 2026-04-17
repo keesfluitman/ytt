@@ -1,7 +1,8 @@
 # YTT - YouTube Transcript Translator
 
 ## 🚨 IMPORTANT: SVELTE 5 REQUIREMENT
-**This project uses Svelte 5 with modern rune patterns.** 
+**This project uses Svelte 5 with modern rune patterns.**
+Full best practices: **[../SVELTE_BEST_PRACTICES.md](../SVELTE_BEST_PRACTICES.md)** (runes, events, snippets, styling, context, async, legacy→modern).
 - **DO NOT** use Svelte 4 legacy patterns like `$:` reactive statements
 - **USE** Svelte 5 runes: `$state()`, `$derived()`, `$effect()`, `$props()`
 - If you're not familiar with Svelte 5 syntax:
