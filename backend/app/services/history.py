@@ -167,6 +167,31 @@ class HistoryService:
         self._save_history(history)
         return entry_id
 
+    def update_entry_improvement(
+        self,
+        entry_id: str,
+        improved_original: str,
+        improved_text: str,
+        summary: str,
+        provider: str,
+    ) -> bool:
+        """Store LLM-improved original/translation/summary on an entry."""
+        history = self._load_history()
+
+        for entry in history:
+            if entry.get("id") == entry_id:
+                entry["improved_original"] = improved_original
+                entry["improved_text"] = improved_text
+                entry["summary"] = summary
+                entry["improved_provider"] = provider
+                entry["improved_at"] = datetime.now().isoformat()
+                self._save_history(history)
+                logger.info("Stored improvement for entry %s (%s)", entry_id, provider)
+                return True
+
+        logger.warning("update_entry_improvement: entry %s not found", entry_id)
+        return False
+
     def find_youtube_entry(
         self, video_id: str, source_lang: str, target_lang: Optional[str] = None
     ) -> Optional[Dict]:

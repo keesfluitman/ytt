@@ -19,9 +19,12 @@ RUN pnpm run build
 # Stage 2: Production runtime with Python + FastAPI
 FROM python:3.11-slim
 
-# Install system dependencies (curl for healthcheck, no ffmpeg needed - only fetching subtitles)
+# Install system dependencies:
+# - curl for the healthcheck
+# - openssh-client to reach the remote Claude host for translation improvement
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -44,6 +47,10 @@ RUN echo "{\"version\": \"1.0.0\", \"build_date\": \"${BUILD_DATE}\", \"git_comm
 
 # Create data directories and set up user
 RUN mkdir -p data/uploads data/transcripts
+
+# SSH dir for the remote-Claude integration: the private key is bind-mounted in
+# at /app/.ssh/id_ed25519, and ssh writes known_hosts here on first connect.
+RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh
 
 # Create user with UID/GID 99 to match Unraid's nobody:users
 RUN groupadd -g 99 users 2>/dev/null || true && \

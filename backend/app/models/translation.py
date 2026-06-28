@@ -111,6 +111,12 @@ class TranslationHistory(BaseModel):
     type: Optional[str] = None  # "text", "youtube", "file"
     updated_at: Optional[datetime] = None
     folder_path: Optional[str] = None
+    # LLM-improved (natural-language, logically paragraphed) versions
+    improved_original: Optional[str] = None
+    improved_text: Optional[str] = None
+    summary: Optional[str] = None
+    improved_provider: Optional[str] = None
+    improved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

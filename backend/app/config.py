@@ -14,6 +14,17 @@ class Settings(BaseSettings):
     
     OPENAI_API_KEY: str = ""
     DEEPL_API_KEY: str = ""
+
+    # LLM translation improvement — runs Claude Code headless on a remote
+    # host over SSH (subscription-authenticated, so no API key is needed here).
+    LLM_IMPROVE_ENABLED: bool = False
+    CLAUDE_SSH_HOST: str = ""          # e.g. 192.168.1.234 (debian box)
+    CLAUDE_SSH_USER: str = ""          # e.g. kees
+    CLAUDE_SSH_KEY: str = "/app/.ssh/id_ed25519"  # mounted into the container
+    CLAUDE_BIN: str = "/home/kees/.local/bin/claude"  # abs path: non-interactive ssh has no ~/.local/bin on PATH
+    CLAUDE_MODEL: str = "haiku"
+    CLAUDE_TIMEOUT: int = 180          # seconds per claude invocation
+    CLAUDE_BATCH_CHARS: int = 6000     # source chars per claude call (batched for long transcripts)
     
     DATABASE_URL: str = "sqlite:///./ytt.db"
     

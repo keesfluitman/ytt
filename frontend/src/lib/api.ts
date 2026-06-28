@@ -157,6 +157,31 @@ export const historyAPI = {
   }
 };
 
+// LLM improvement endpoints
+export interface ImproveResponse {
+  entry_id: string;
+  improved_original: string;
+  improved_text: string;
+  summary: string;
+  provider: string;
+  paragraph_count: number;
+  processing_time: number;
+}
+
+export const improveAPI = {
+  status: async (): Promise<{ available: boolean; model: string }> => {
+    return fetchAPI('/improve/status');
+  },
+
+  improve: async (entryId: string): Promise<ImproveResponse> => {
+    return fetchAPI('/improve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entry_id: entryId })
+    });
+  }
+};
+
 // Version info
 export interface VersionInfo {
   version: string;

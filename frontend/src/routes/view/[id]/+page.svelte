@@ -9,14 +9,16 @@
 		Tile,
 		Button,
 		Tag,
+		Toggle,
+		InlineLoading,
 		InlineNotification,
 		SkeletonText,
 		ButtonSet,
 		Modal
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, DocumentDownload, Maximize, Copy, Checkmark, Document, Translate } from 'carbon-icons-svelte';
+	import { ArrowLeft, DocumentDownload, Maximize, Copy, Checkmark, Document, Translate, Bot } from 'carbon-icons-svelte';
 	import { goto } from '$app/navigation';
-	import { historyAPI } from '$lib/api';
+	import { historyAPI, improveAPI } from '$lib/api';
 	import { copyToClipboard, formatBothTexts } from '$lib/utils/clipboard';
 
 	// Get the entry ID from the URL
@@ -27,6 +29,12 @@
 	let isLoading = $state(true);
 	let errorMessage = $state('');
 	let isFullscreen = $state(false);
+
+	// LLM improvement state
+	let improveAvailable = $state(false);
+	let isImproving = $state(false);
+	let improveError = $state('');
+	let showImproved = $state(true); // when an improved version exists, prefer it
 
 	// Load entry data
 	async function loadEntry() {
@@ -93,17 +101,48 @@
 	// Get display text - use processed version for YouTube transcripts
 	function getDisplayText(entry: any, isOriginal: boolean): string {
 		if (!entry) return '';
-		
+
+		// Prefer the LLM-improved, logically-paragraphed version when present.
+		// It is already aligned source<->target, so no extra processing needed.
+		if (showImproved && entry.improved_text) {
+			const improved = isOriginal ? entry.improved_original : entry.improved_text;
+			if (improved) return improved;
+		}
+
 		const text = isOriginal ? entry.original_text : entry.translated_text;
 		if (!text) return '';
-		
+
 		// For YouTube entries, format the original text into paragraphs
 		// For translated text, it should already have proper formatting
 		if (isOriginal && entry.type === 'youtube') {
 			return prepareTextForDisplay(text);
 		}
-		
+
 		return text;
+	}
+
+	// Improve the translation via the remote Claude instance
+	async function improveTranslation() {
+		if (!entry || isImproving || !entryId) return;
+
+		isImproving = true;
+		improveError = '';
+
+		try {
+			const res = await improveAPI.improve(entryId);
+			entry = {
+				...entry,
+				improved_original: res.improved_original,
+				improved_text: res.improved_text,
+				summary: res.summary,
+				improved_provider: res.provider
+			};
+			showImproved = true;
+		} catch (error) {
+			improveError = error instanceof Error ? error.message : 'Improvement failed';
+		} finally {
+			isImproving = false;
+		}
 	}
 
 
@@ -257,6 +296,8 @@ ${translatedText}` : ''}
 
 	onMount(() => {
 		loadEntry();
+		// Check whether remote-Claude improvement is configured/enabled
+		improveAPI.status().then((s) => { improveAvailable = s.available; }).catch(() => {});
 		// Add keyboard listener for escape key
 		window.addEventListener('keydown', handleKeydown);
 		
@@ -288,6 +329,19 @@ ${translatedText}` : ''}
 					
 					{#if entry}
 						<ButtonSet>
+							{#if improveAvailable}
+								{#if isImproving}
+									<InlineLoading description="Improving with Claude… (~30s)" />
+								{:else}
+									<Button
+										kind="primary"
+										icon={Bot}
+										onclick={improveTranslation}
+									>
+										{entry.improved_text ? 'Re-improve' : 'Improve with Claude'}
+									</Button>
+								{/if}
+							{/if}
 							<Button
 								kind="ghost"
 								icon={Maximize}
@@ -366,11 +420,58 @@ ${translatedText}` : ''}
 				</Column>
 			</Row>
 
+			<!-- Improvement error -->
+			{#if improveError}
+				<Row>
+					<Column sm={4} md={8} lg={16} xlg={16} max={15}>
+						<InlineNotification
+							kind="error"
+							title="Improvement failed"
+							subtitle={improveError}
+							on:close={() => { improveError = ''; }}
+						/>
+					</Column>
+				</Row>
+			{/if}
+
+			<!-- AI summary -->
+			{#if entry.summary}
+				<Row>
+					<Column sm={4} md={8} lg={16} xlg={16} max={15}>
+						<Tile light class="summary-tile">
+							<div class="summary-head">
+								<Bot size={20} />
+								<h3>Summary</h3>
+							</div>
+							<p>{entry.summary}</p>
+						</Tile>
+					</Column>
+				</Row>
+			{/if}
+
+			<!-- Raw / improved toggle -->
+			{#if entry.improved_text}
+				<Row>
+					<Column sm={4} md={8} lg={16} xlg={16} max={15}>
+						<div class="improve-bar">
+							<Tag type="green">✨ {entry.improved_provider || 'Claude'}</Tag>
+							<Toggle
+								size="sm"
+								labelText="Translation version"
+								labelA="LibreTranslate (raw)"
+								labelB="Claude (improved)"
+								bind:toggled={showImproved}
+							/>
+						</div>
+					</Column>
+				</Row>
+			{/if}
+
 			<!-- Side-by-side text display -->
 			<Row>
 				<Column sm={4} md={4} lg={8} xlg={8} max={8}>
 					<h3>Original Text ({entry.source_lang})</h3>
-					<div class="char-count">{entry.original_text.length} characters</div>
+					<div class="char-count">{getDisplayText(entry, true).length} characters</div>
 					<Tile class="text-scroll-tile">
 						<div 
 							class="text-content" 
@@ -396,16 +497,14 @@ ${translatedText}` : ''}
 				
 				<Column sm={4} md={4} lg={8} xlg={8} max={8}>
 					<h3>Translated Text ({entry.target_lang})</h3>
-					<div class="char-count">
-						{entry.translated_text ? entry.translated_text.length : 0} characters
-					</div>
+					<div class="char-count">{getDisplayText(entry, false).length} characters</div>
 					<Tile class="text-scroll-tile">
 						<div 
 							class="text-content" 
 							bind:this={translatedPanel}
 							onscroll={(e) => handleScroll(e, false)}
 						>
-							{#if entry.translated_text}
+							{#if getDisplayText(entry, false)}
 								{#each getDisplayText(entry, false).split('\n\n') as paragraph, index}
 									{#if paragraph.trim()}
 										<p 
@@ -791,6 +890,30 @@ ${translatedText}` : ''}
 		width: 100%;
 		max-width: none;
 		justify-content: flex-start;
+	}
+
+	/* 5b. AI summary + improve toggle */
+	:global(.summary-tile) {
+		margin-bottom: 16px;
+	}
+
+	.summary-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 8px;
+	}
+
+	.summary-head h3 {
+		margin: 0;
+	}
+
+	.improve-bar {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		flex-wrap: wrap;
+		margin-bottom: 16px;
 	}
 
 	/* 6. Mobile adjustments */

@@ -9,7 +9,7 @@ import os
 import logging
 from pathlib import Path
 
-from app.api import translate, history, youtube, settings as settings_api
+from app.api import translate, history, youtube, improve, settings as settings_api
 from app.config import settings
 
 # Configure logging
@@ -70,6 +70,7 @@ app.add_middleware(
 app.include_router(translate.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
 app.include_router(youtube.router, prefix="/api")
+app.include_router(improve.router, prefix="/api")
 app.include_router(settings_api.router, prefix="/api")
 
 

@@ -10,11 +10,22 @@ services:
     environment:
       - CORS_ORIGINS=["http://localhost:8000","http://127.0.0.1:8000"]
       - LIBRETRANSLATE_URL=http://libretranslate:5000
+      # --- Translation improvement via remote Claude Code (over SSH) ---
+      # Set ENABLED=true and point at the host where `claude` is logged in.
+      - LLM_IMPROVE_ENABLED=true
+      - CLAUDE_SSH_HOST=192.168.1.234   # debian box running claude
+      - CLAUDE_SSH_USER=kees
+      - CLAUDE_SSH_KEY=/app/.ssh/id_ed25519
+      - CLAUDE_BIN=/home/kees/.local/bin/claude
+      - CLAUDE_MODEL=haiku
     networks:
       - ytt-network
     volumes:
       - ./data:/app/data
-    user: "1000:1000"  # Change to match your user's UID:GID
+      # Mount the deploy SSH private key read-only; must be chmod 600 on the host
+      # and its public key appended to kees@debian:~/.ssh/authorized_keys.
+      - ./ssh/id_ed25519:/app/.ssh/id_ed25519:ro
+    user: "1000:1000"  # Change to match your user's UID:GID (99:99 on Unraid)
 
   libretranslate:
     image: libretranslate/libretranslate:latest
