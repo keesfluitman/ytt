@@ -92,3 +92,6 @@ docs/
 
 # Local deploy script + .env (per-machine, not committed)
 deploy/
+
+# llm-notes live in ~/claude-config/project-notes/ytt/ — never here
+llm-notes/
