@@ -39,8 +39,8 @@
 	import { onMount } from "svelte";
 
 	// State
-	let translations = $state([]);
-	let filteredTranslations = $state([]);
+	let translations = $state<any[]>([]);
+	let filteredTranslations = $state<any[]>([]);
 	let searchValue = $state("");
 	let isLoading = $state(true);
 	let error = $state("");
@@ -297,6 +297,9 @@
 								<div class="meta-row">
 									<Tag type="outline" size="sm">{translation.source_lang} → {translation.target_lang}</Tag>
 									<Tag type="blue" size="sm">{translation.provider}</Tag>
+									{#if translation.improved_text}
+										<Tag type="green" size="sm">✨ Claude</Tag>
+									{/if}
 								</div>
 								<p class="date-text">{translation.created_at}</p>
 							</div>
@@ -365,6 +368,9 @@
 								{:else if cell.key === "title"}
 									<div class="title-cell">
 										<span class="title-text">{cell.value}</span>
+										{#if row.improved_text}
+											<Tag type="green" size="sm">✨ Claude</Tag>
+										{/if}
 									</div>
 								{:else}
 									{cell.value}

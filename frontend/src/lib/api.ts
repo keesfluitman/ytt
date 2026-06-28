@@ -157,15 +157,13 @@ export const historyAPI = {
   }
 };
 
-// LLM improvement endpoints
-export interface ImproveResponse {
-  entry_id: string;
-  improved_original: string;
-  improved_text: string;
-  summary: string;
-  provider: string;
-  paragraph_count: number;
-  processing_time: number;
+// LLM improvement endpoints (background job + polling)
+export interface ImproveState {
+  status: 'idle' | 'running' | 'started' | 'done' | 'error';
+  message?: string;
+  paragraph_count?: number;
+  processing_time?: number;
+  provider?: string;
 }
 
 export const improveAPI = {
@@ -173,12 +171,18 @@ export const improveAPI = {
     return fetchAPI('/improve/status');
   },
 
-  improve: async (entryId: string): Promise<ImproveResponse> => {
+  // Kick off a background improve job; returns immediately.
+  start: async (entryId: string): Promise<ImproveState> => {
     return fetchAPI('/improve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entry_id: entryId })
     });
+  },
+
+  // Poll the job state for an entry.
+  state: async (entryId: string): Promise<ImproveState> => {
+    return fetchAPI(`/improve/state/${entryId}`);
   }
 };
 

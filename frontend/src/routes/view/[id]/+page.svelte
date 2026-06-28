@@ -121,7 +121,11 @@
 		return text;
 	}
 
-	// Improve the translation via the remote Claude instance
+	// Improve the translation via the remote Claude instance.
+	// The backend runs it in the background; we kick it off then poll for the
+	// result, so the browser never waits on a long request (no proxy timeout).
+	let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 	async function improveTranslation() {
 		if (!entry || isImproving || !entryId) return;
 
@@ -129,19 +133,52 @@
 		improveError = '';
 
 		try {
-			const res = await improveAPI.improve(entryId);
-			entry = {
-				...entry,
-				improved_original: res.improved_original,
-				improved_text: res.improved_text,
-				summary: res.summary,
-				improved_provider: res.provider
-			};
-			showImproved = true;
+			await improveAPI.start(entryId);
+			startPolling();
 		} catch (error) {
 			improveError = error instanceof Error ? error.message : 'Improvement failed';
-		} finally {
 			isImproving = false;
+		}
+	}
+
+	function startPolling() {
+		stopPolling();
+		pollTimer = setInterval(async () => {
+			if (!entryId) return;
+			try {
+				const s = await improveAPI.state(entryId);
+				if (s.status === 'done') {
+					stopPolling();
+					entry = await historyAPI.getTranslation(entryId);
+					showImproved = true;
+					isImproving = false;
+				} else if (s.status === 'error') {
+					stopPolling();
+					improveError = s.message || 'Improvement failed';
+					isImproving = false;
+				} else if (s.status === 'idle') {
+					// Job vanished (e.g. container restart) — see if it finished anyway
+					stopPolling();
+					const fresh = await historyAPI.getTranslation(entryId);
+					isImproving = false;
+					if (fresh.improved_text) {
+						entry = fresh;
+						showImproved = true;
+					} else {
+						improveError = 'Improvement was interrupted. Please try again.';
+					}
+				}
+				// 'running' / 'started' → keep polling
+			} catch (e) {
+				// transient poll error — keep polling
+			}
+		}, 3000);
+	}
+
+	function stopPolling() {
+		if (pollTimer) {
+			clearInterval(pollTimer);
+			pollTimer = null;
 		}
 	}
 
@@ -298,13 +335,23 @@ ${translatedText}` : ''}
 		loadEntry();
 		// Check whether remote-Claude improvement is configured/enabled
 		improveAPI.status().then((s) => { improveAvailable = s.available; }).catch(() => {});
+		// Resume polling if an improve job is already running for this entry
+		if (entryId) {
+			improveAPI.state(entryId).then((s) => {
+				if (s.status === 'running' || s.status === 'started') {
+					isImproving = true;
+					startPolling();
+				}
+			}).catch(() => {});
+		}
 		// Add keyboard listener for escape key
 		window.addEventListener('keydown', handleKeydown);
-		
+
 		return () => {
 			window.removeEventListener('keydown', handleKeydown);
 			// Clean up body class
 			document.body.classList.remove('fullscreen-mode');
+			stopPolling();
 		};
 	});
 </script>
@@ -331,7 +378,7 @@ ${translatedText}` : ''}
 						<ButtonSet>
 							{#if improveAvailable}
 								{#if isImproving}
-									<InlineLoading description="Improving with Claude… (~30s)" />
+									<InlineLoading description="Improving with Claude… (runs in background, may take 1–2 min)" />
 								{:else}
 									<Button
 										kind="primary"
