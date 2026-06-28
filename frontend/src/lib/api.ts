@@ -159,8 +159,9 @@ export const historyAPI = {
 
 // LLM improvement endpoints (background job + polling)
 export interface ImproveState {
-  status: 'idle' | 'running' | 'started' | 'done' | 'error';
+  status: 'idle' | 'running' | 'started' | 'done' | 'error' | 'skipped';
   message?: string;
+  reason?: string;
   paragraph_count?: number;
   processing_time?: number;
   provider?: string;
@@ -172,11 +173,12 @@ export const improveAPI = {
   },
 
   // Kick off a background improve job; returns immediately.
-  start: async (entryId: string): Promise<ImproveState> => {
+  // force=true skips the "already good?" pre-check.
+  start: async (entryId: string, force = false): Promise<ImproveState> => {
     return fetchAPI('/improve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entry_id: entryId })
+      body: JSON.stringify({ entry_id: entryId, force })
     });
   },
 

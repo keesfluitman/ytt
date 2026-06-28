@@ -7,12 +7,17 @@ the remote shell command line (no escaping/injection surface); the remote
 command itself is static.
 
 Design notes:
-- Source paragraphs go in, aligned {source, target} pairs come back, so the
-  two view columns stay paragraph-aligned by construction.
+- Claude reflows the transcript into logical paragraphs and returns the cleaned
+  source and its translation together, so the two view columns are aligned by
+  construction (no fragile paragraph-count matching).
+- Output uses sentinel delimiters, not JSON: translated text routinely contains
+  quotation marks, which corrupt model-generated JSON.
 - Long transcripts are batched by character budget to keep each call within
   Claude's output limit and avoid SSH timeouts.
-- Any failure (SSH down, bad JSON, count mismatch) raises — the caller keeps
-  the raw LibreTranslate result, so improvement is always non-destructive.
+- assess() is a cheap pre-check that lets the caller skip already-good
+  translations unless the user forces the improvement.
+- Any failure (SSH down, unparseable output) raises — the caller keeps the raw
+  LibreTranslate result, so improvement is always non-destructive.
 """
 
 import asyncio
@@ -36,17 +41,35 @@ class LLMImproveError(Exception):
 
 
 class ClaudeRemoteService:
-    TRANSLATE_PROMPT = (
-        "You are a professional translator. The user message is JSON: "
-        "{{\"segments\": [...]}} where each segment is one paragraph of rough "
-        "auto-transcribed {source_name}.\n\n"
-        "Translate EACH segment into natural, fluent {target_name} that reads "
-        "like a human wrote it — smooth out the transcription roughness, but "
-        "never add or drop content.\n\n"
-        "Return ONLY valid JSON, no markdown fences and no commentary, shaped "
-        "exactly as: {{\"translations\": [\"...\", ...]}}. The array MUST have "
-        "EXACTLY the same number of items as the input segments, in the same "
-        "order — never merge, split, add or drop a paragraph."
+    # Delimiter (not JSON) output: the translated text frequently contains
+    # quotation marks, which break model-generated JSON. Sentinel lines can't be
+    # broken by quotes, and letting Claude choose the paragraph count keeps the
+    # source/target pairs aligned by construction (they come from one output).
+    PARA_SEP = "===P==="
+    TGT_SEP = "===T==="
+
+    REFLOW_PROMPT = (
+        "You are a professional subtitle editor and translator. The user message "
+        "is JSON {{\"segments\": [...]}} of rough auto-transcribed {source_name} "
+        "fragments.\n\n"
+        "Reflow them into logically coherent, well-punctuated paragraphs in "
+        "{source_name} (fix punctuation/capitalisation, remove stutters and "
+        "filler, never invent content). For EACH resulting paragraph, also give a "
+        "natural, fluent {target_name} translation.\n\n"
+        "Output PLAIN TEXT only — no JSON, no numbering, no commentary. For each "
+        "paragraph, output the cleaned {source_name}, then a line containing "
+        "exactly ===T===, then the {target_name} translation. Separate paragraphs "
+        "with a line containing exactly ===P==="
+    )
+
+    ASSESS_PROMPT = (
+        "You are a translation quality reviewer. Below is a machine translation "
+        "in {target_name}. Decide whether it already reads as natural, fluent "
+        "{target_name}, or whether it reads as rough/literal machine output that "
+        "would clearly benefit from rewriting.\n\n"
+        "Reply with EXACTLY one line: either 'GOOD: <short reason>' or "
+        "'IMPROVE: <short reason>'. Nothing else.\n\n"
+        "Translation:\n{text}"
     )
 
     SUMMARY_PROMPT = (
@@ -69,19 +92,43 @@ class ClaudeRemoteService:
 
     # ---- public API -----------------------------------------------------
 
+    async def assess(self, translation_text: str, target_lang: str) -> Dict:
+        """Cheap pre-check: is the existing translation already good?
+
+        Returns {"needs_improvement": bool, "reason": str}. Defaults to
+        needs_improvement=True on any ambiguity (better to improve than to
+        wrongly skip).
+        """
+        if not self.available():
+            raise LLMNotConfigured("Remote Claude improvement is not configured")
+
+        sample = (translation_text or "").strip()[:1800]
+        if not sample:
+            return {"needs_improvement": True, "reason": "no existing translation"}
+
+        prompt = self.ASSESS_PROMPT.format(
+            target_name=self._lang_name(target_lang), text=sample
+        )
+        text = self._result_text(await self._run_claude(prompt))
+        line = (text.strip().splitlines() or [""])[0].strip()
+        reason = line.split(":", 1)[1].strip() if ":" in line else line
+        if line.upper().startswith("GOOD"):
+            return {"needs_improvement": False, "reason": reason}
+        return {"needs_improvement": True, "reason": reason}
+
     async def improve(
         self,
         source_paragraphs: List[str],
         source_lang: str,
         target_lang: str,
     ) -> Dict:
-        """Translate each source paragraph into natural target language.
+        """Reflow + translate the transcript into aligned source/target paragraphs.
 
         Returns {"segments": [...cleaned source...], "translations": [...],
-        "summary": str}. translations is aligned 1:1 with segments, so the
-        caller can render the two columns side by side without misalignment.
-        Only the translation is generated by Claude (half the output of the
-        reflow-both approach), so it's faster and far more reliable.
+        "summary": str}. Both lists come from the same model output, so they are
+        aligned 1:1 by construction regardless of the raw paragraph count.
+        Output uses sentinel delimiters (not JSON), so quotation marks in the
+        text can't corrupt parsing.
         """
         if not self.available():
             raise LLMNotConfigured("Remote Claude improvement is not configured")
@@ -93,21 +140,19 @@ class ClaudeRemoteService:
         source_name = self._lang_name(source_lang)
         target_name = self._lang_name(target_lang)
 
+        sources: List[str] = []
         translations: List[str] = []
         for batch in self._batches(segments):
-            translations.extend(
-                await self._translate_batch(batch, source_name, target_name)
-            )
+            for src, tgt in await self._reflow_batch(batch, source_name, target_name):
+                sources.append(src)
+                translations.append(tgt)
 
-        if len(translations) != len(segments):
-            raise LLMImproveError(
-                f"Translation count mismatch: {len(segments)} in, "
-                f"{len(translations)} out"
-            )
+        if not translations:
+            raise LLMImproveError("Claude returned no paragraphs")
 
         summary = await self._summarize("\n\n".join(translations), target_name)
 
-        return {"segments": segments, "translations": translations, "summary": summary}
+        return {"segments": sources, "translations": translations, "summary": summary}
 
     # ---- internals ------------------------------------------------------
 
@@ -125,34 +170,36 @@ class ClaudeRemoteService:
             batches.append(current)
         return batches
 
-    async def _translate_batch(
+    async def _reflow_batch(
         self, segments: List[str], source_name: str, target_name: str
-    ) -> List[str]:
-        system = self.TRANSLATE_PROMPT.format(
+    ) -> List[tuple]:
+        """Return [(cleaned_source, translation), ...] for one batch."""
+        system = self.REFLOW_PROMPT.format(
             source_name=source_name, target_name=target_name
         )
         payload = json.dumps({"segments": segments}, ensure_ascii=False)
-        raw = await self._run_claude(f"{system}\n\n{payload}")
-        data = self._parse_json_result(raw)
+        text = self._result_text(await self._run_claude(f"{system}\n\n{payload}"))
 
-        translations = data.get("translations")
-        if not isinstance(translations, list):
-            raise LLMImproveError("Claude response missing 'translations' array")
-        if len(translations) != len(segments):
-            # Per-batch alignment guard: bail so the caller keeps the raw result.
-            raise LLMImproveError(
-                f"Batch count mismatch: {len(segments)} in, {len(translations)} out"
-            )
-        return [str(t).strip() for t in translations]
+        pairs: List[tuple] = []
+        for block in text.split(self.PARA_SEP):
+            block = block.strip()
+            if not block or self.TGT_SEP not in block:
+                continue
+            src, tgt = block.split(self.TGT_SEP, 1)
+            src, tgt = src.strip(), tgt.strip()
+            if src or tgt:
+                pairs.append((src, tgt))
+
+        if not pairs:
+            raise LLMImproveError("Could not parse any paragraphs from Claude output")
+        return pairs
 
     async def _summarize(self, text: str, target_name: str) -> str:
         # Cap the input so the summary call stays small and fast.
         snippet = text[:8000]
         prompt = self.SUMMARY_PROMPT.format(target_name=target_name, text=snippet)
         try:
-            raw = await self._run_claude(prompt)
-            wrapper = json.loads(raw)
-            return str(wrapper.get("result", "")).strip()
+            return self._result_text(await self._run_claude(prompt))
         except Exception as e:  # summary is best-effort; never fail the request
             logger.warning("Summary generation failed: %s", e)
             return ""
@@ -210,12 +257,14 @@ class ClaudeRemoteService:
 
         return stdout.decode(errors="replace")
 
-    def _parse_json_result(self, raw: str) -> dict:
-        """Unwrap the CLI envelope, strip code fences, parse the inner JSON."""
+    def _result_text(self, raw: str) -> str:
+        """Unwrap the CLI's --output-format json envelope (which is reliable,
+        machine-generated JSON) and return the model's text, stripping any
+        stray code fences. The model's text itself is NOT parsed as JSON."""
         try:
             wrapper = json.loads(raw)
         except json.JSONDecodeError:
-            raise LLMImproveError("Remote claude returned non-JSON output")
+            raise LLMImproveError("Remote claude returned a non-JSON envelope")
 
         if wrapper.get("is_error"):
             raise LLMImproveError(
@@ -226,17 +275,7 @@ class ClaudeRemoteService:
         if text.startswith("```"):
             text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
             text = re.sub(r"\s*```$", "", text).strip()
-
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", text, re.DOTALL)
-            if match:
-                try:
-                    return json.loads(match.group(0))
-                except json.JSONDecodeError:
-                    pass
-            raise LLMImproveError("Could not parse improved-translation JSON")
+        return text
 
     @staticmethod
     def _lang_name(code: str) -> str:

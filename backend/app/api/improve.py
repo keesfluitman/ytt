@@ -28,6 +28,7 @@ _tasks: Dict[str, asyncio.Task] = {}  # keep refs so tasks aren't garbage-collec
 
 class ImproveRequest(BaseModel):
     entry_id: str
+    force: bool = False  # skip the "already good?" pre-check and improve anyway
 
 
 @router.get("/improve/status")
@@ -42,9 +43,21 @@ async def improve_state(entry_id: str):
     return _jobs.get(entry_id, {"status": "idle"})
 
 
-async def _run_improve(entry_id, source_paragraphs, source_lang, target_lang):
+async def _run_improve(
+    entry_id, source_paragraphs, source_lang, target_lang, translated_text, force
+):
     start = time.time()
     try:
+        # Cheap pre-check: don't burn a full improve on an already-good
+        # translation unless the user explicitly forced it.
+        if not force and translated_text and translated_text.strip():
+            verdict = await llm.assess(translated_text, target_lang)
+            if not verdict["needs_improvement"]:
+                _jobs[entry_id] = {"status": "skipped", "reason": verdict["reason"]}
+                logger.info("Skipped improve for %s (already good): %s",
+                            entry_id, verdict["reason"])
+                return
+
         result = await llm.improve(source_paragraphs, source_lang, target_lang)
         provider = f"claude-{settings.CLAUDE_MODEL}"
         history_service.update_entry_improvement(
@@ -101,12 +114,15 @@ async def improve_entry(req: ImproveRequest):
         "paragraph_count": len(source_paragraphs),
     }
     task = asyncio.create_task(
-        _run_improve(req.entry_id, source_paragraphs, source_lang, target_lang)
+        _run_improve(
+            req.entry_id, source_paragraphs, source_lang, target_lang,
+            entry.translated_text, req.force,
+        )
     )
     _tasks[req.entry_id] = task
 
-    logger.info("Started improve job for %s (%d paragraphs)",
-                req.entry_id, len(source_paragraphs))
+    logger.info("Started improve job for %s (%d paragraphs, force=%s)",
+                req.entry_id, len(source_paragraphs), req.force)
     return {
         "status": "started",
         "entry_id": req.entry_id,

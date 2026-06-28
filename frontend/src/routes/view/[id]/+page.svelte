@@ -12,6 +12,7 @@
 		Toggle,
 		InlineLoading,
 		InlineNotification,
+		NotificationActionButton,
 		SkeletonText,
 		ButtonSet,
 		Modal
@@ -34,6 +35,7 @@
 	let improveAvailable = $state(false);
 	let isImproving = $state(false);
 	let improveError = $state('');
+	let improveSkippedReason = $state(''); // set when the pre-check says it's already good
 	let showImproved = $state(true); // when an improved version exists, prefer it
 
 	// Load entry data
@@ -126,14 +128,15 @@
 	// result, so the browser never waits on a long request (no proxy timeout).
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-	async function improveTranslation() {
+	async function improveTranslation(force = false) {
 		if (!entry || isImproving || !entryId) return;
 
 		isImproving = true;
 		improveError = '';
+		improveSkippedReason = '';
 
 		try {
-			await improveAPI.start(entryId);
+			await improveAPI.start(entryId, force);
 			startPolling();
 		} catch (error) {
 			improveError = error instanceof Error ? error.message : 'Improvement failed';
@@ -155,6 +158,10 @@
 				} else if (s.status === 'error') {
 					stopPolling();
 					improveError = s.message || 'Improvement failed';
+					isImproving = false;
+				} else if (s.status === 'skipped') {
+					stopPolling();
+					improveSkippedReason = s.reason || 'The translation already looks good.';
 					isImproving = false;
 				} else if (s.status === 'idle') {
 					// Job vanished (e.g. container restart) — see if it finished anyway
@@ -383,7 +390,7 @@ ${translatedText}` : ''}
 									<Button
 										kind="primary"
 										icon={Bot}
-										onclick={improveTranslation}
+										onclick={() => improveTranslation(false)}
 									>
 										{entry.improved_text ? 'Re-improve' : 'Improve with Claude'}
 									</Button>
@@ -477,6 +484,26 @@ ${translatedText}` : ''}
 							subtitle={improveError}
 							on:close={() => { improveError = ''; }}
 						/>
+					</Column>
+				</Row>
+			{/if}
+
+			<!-- Pre-check said the translation is already good -->
+			{#if improveSkippedReason}
+				<Row>
+					<Column sm={4} md={8} lg={16} xlg={16} max={15}>
+						<InlineNotification
+							kind="info"
+							title="Translation already looks good"
+							subtitle={improveSkippedReason}
+							hideCloseButton
+						>
+							<svelte:fragment slot="actions">
+								<NotificationActionButton onclick={() => improveTranslation(true)}>
+									Improve anyway
+								</NotificationActionButton>
+							</svelte:fragment>
+						</InlineNotification>
 					</Column>
 				</Row>
 			{/if}
