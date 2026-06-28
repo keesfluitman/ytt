@@ -52,10 +52,18 @@ RUN mkdir -p data/uploads data/transcripts
 # at /app/.ssh/id_ed25519, and ssh writes known_hosts here on first connect.
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh
 
-# Create user with UID/GID 99 to match Unraid's nobody:users
-RUN groupadd -g 99 users 2>/dev/null || true && \
-    useradd -u 99 -g 99 -d /app -s /bin/bash unraid-user 2>/dev/null || true && \
+# Create user with UID/GID 99 to match Unraid's nobody:users.
+# A real passwd/group entry is required: the ssh client (used for the
+# remote-Claude integration) calls getpwuid(99) to find the home dir for
+# ~/.ssh, and fails with "No user exists for uid 99" without it. The previous
+# `groupadd -g 99 users` clashed with the pre-existing "users" group, so gid 99
+# was never created and the user creation silently failed.
+RUN if ! getent group 99 >/dev/null; then groupadd -g 99 appuser; fi && \
+    if ! getent passwd 99 >/dev/null; then useradd -u 99 -g 99 -d /app -s /bin/bash appuser; fi && \
     chown -R 99:99 /app
+
+# ssh (and anything using ~) resolves the home dir from here
+ENV HOME=/app
 
 # Switch to UID 99 (Unraid's nobody)
 USER 99:99
