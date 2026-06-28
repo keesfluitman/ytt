@@ -89,3 +89,6 @@ deploy-frontend.sh
 
 # Development notes and documentation
 docs/
+
+# Local deploy script + .env (per-machine, not committed)
+deploy/
