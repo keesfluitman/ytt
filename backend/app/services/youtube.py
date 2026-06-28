@@ -1,3 +1,4 @@
+import html
 import logging
 import re
 import json
@@ -173,8 +174,15 @@ class YouTubeTranscriptService:
                 continue
             if re.match(r"^\d{2}:\d{2}", line):
                 continue
-            # Remove HTML tags
+            # Remove HTML tags (inline timing/<c> tags from auto-subs)
             line = re.sub(r"<[^>]+>", "", line)
+
+            # Decode HTML entities (&nbsp;, &amp;, &#39;, ...) that yt-dlp
+            # leaves in auto-caption text, then normalize non-breaking spaces
+            # and collapse the resulting whitespace runs.
+            line = html.unescape(line)
+            line = line.replace("\xa0", " ")
+            line = re.sub(r"\s+", " ", line).strip()
 
             # Remove duplicate lines (common in auto-subs)
             if line and line not in seen:
