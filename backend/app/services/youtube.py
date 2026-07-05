@@ -64,6 +64,58 @@ class YouTubeTranscriptService:
 
         return {}
 
+    async def list_channel_videos(
+        self, channel_url: str, limit: int = 0, use_cookies: str = "none"
+    ) -> List[Dict]:
+        """Enumerate a channel's uploads via yt-dlp --flat-playlist.
+
+        Fast: one call returns the whole uploads list WITHOUT visiting each
+        video page (no per-video metadata / transcript). Enough to search over
+        titles. `limit` 0 = full catalog; >0 caps to the newest N.
+        """
+        cmd = ["yt-dlp", "--flat-playlist", "--dump-single-json", "--no-warnings"]
+        if limit and limit > 0:
+            cmd.extend(["--playlist-end", str(limit)])
+        if use_cookies != "none":
+            cmd.extend(["--cookies-from-browser", use_cookies])
+        cmd.append(channel_url)
+
+        try:
+            result = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await result.communicate()
+
+            if result.returncode != 0 or not stdout:
+                logger.error(
+                    "Channel enumerate failed (%s): %s",
+                    channel_url,
+                    stderr.decode()[:300] if stderr else "no output",
+                )
+                return []
+
+            data = json.loads(stdout.decode())
+            videos = []
+            for entry in data.get("entries") or []:
+                if not entry:
+                    continue
+                vid = entry.get("id")
+                if not vid:
+                    continue
+                videos.append(
+                    {
+                        "video_id": vid,
+                        "title": entry.get("title") or "",
+                        "url": entry.get("url")
+                        or f"https://www.youtube.com/watch?v={vid}",
+                        "duration": entry.get("duration"),
+                    }
+                )
+            return videos
+        except Exception as e:
+            logger.error("Error enumerating channel %s: %s", channel_url, e)
+            return []
+
     async def check_available_subtitles(
         self, url: str, use_cookies: str = "none"
     ) -> List[str]:
