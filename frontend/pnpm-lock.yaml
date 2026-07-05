@@ -13,7 +13,7 @@ importers:
         version: 0.109.0
       carbon-icons-svelte:
         specifier: ^13.8.0
-        version: 13.12.0
+        version: 13.13.0
       carbon-preprocess-svelte:
         specifier: ^0.11.23
         version: 0.11.36
@@ -439,8 +439,8 @@ packages:
   carbon-components-svelte@0.109.0:
     resolution: {integrity: sha512-cbLv0kw0LM78d4JsNERCtp+SekaiPh3sw5snvjHbdLKk5GLaEoqI2KjRHzvr9FW76I8yVTvTqukd5UFoBlkmrg==}
 
-  carbon-icons-svelte@13.12.0:
-    resolution: {integrity: sha512-VK/gSvzCEe3tNEHS2xAcih/GBuygHuUenV+EY/44A3nyYjk+MCbgpY20uwID8/81gEUxIkl4rA/EMRWb/3qs0A==}
+  carbon-icons-svelte@13.13.0:
+    resolution: {integrity: sha512-9oBq+RjpCR8Zv5X4yFfPl7zWJb+4/qHTSuhCw8r7SfhC3PBBJiiHgZ5Dn73AjkR88CaOCNTmtSFVEyXplluhEQ==}
 
   carbon-preprocess-svelte@0.11.36:
     resolution: {integrity: sha512-UPDcXHbI0sj/nSf70n5iDBE3JsMxHhB+cn9exr2UxL/6ZsWqiOMAKjD3vu3Tj/XNdyMAkTuKxo1sMqKATGcoLA==}
@@ -1381,7 +1381,7 @@ snapshots:
       '@ibm/telemetry-js': 1.11.0
       flatpickr: 4.6.9
 
-  carbon-icons-svelte@13.12.0: {}
+  carbon-icons-svelte@13.13.0: {}
 
   carbon-preprocess-svelte@0.11.36: {}
 
