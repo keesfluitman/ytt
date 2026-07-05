@@ -105,3 +105,36 @@ async def extract_video_id(url: str = Query(..., description="YouTube URL")):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
     return {"video_id": video_id, "url": url}
+
+
+@router.get("/youtube/channel")
+async def list_channel_videos(
+    handle: Optional[str] = Query(None, description="Channel handle, e.g. @WebDevSimplified"),
+    channel_id: Optional[str] = Query(None, description="Channel ID, e.g. UC..."),
+    url: Optional[str] = Query(None, description="Full channel/playlist URL"),
+    limit: int = Query(0, ge=0, description="Max videos (0 = full catalog)"),
+):
+    """Enumerate a channel's uploads (video id + title) via yt-dlp flat-playlist.
+
+    Provide exactly one of handle / channel_id / url. Fast — does not fetch
+    per-video pages, so it's meant for searching over titles, not summarizing.
+    """
+    if url:
+        channel_url = url
+    elif channel_id:
+        channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
+    elif handle:
+        h = handle if handle.startswith("@") else f"@{handle}"
+        channel_url = f"https://www.youtube.com/{h}/videos"
+    else:
+        raise HTTPException(
+            status_code=400, detail="Provide one of: handle, channel_id, url"
+        )
+
+    try:
+        videos = await youtube_service.list_channel_videos(channel_url, limit=limit)
+        return {"channel_url": channel_url, "count": len(videos), "videos": videos}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error enumerating channel: {str(e)}"
+        )
