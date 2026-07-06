@@ -58,6 +58,11 @@ class YouTubeTranscriptService:
                     "uploader": data.get("uploader", ""),
                     "upload_date": data.get("upload_date", ""),
                     "description": data.get("description", "")[:500],
+                    # Native language of the video (yt-dlp metadata) + the manual
+                    # caption tracks. Used to fall back to the original language
+                    # when the requested source_lang has no track of its own.
+                    "language": data.get("language") or "",
+                    "subtitle_langs": list((data.get("subtitles") or {}).keys()),
                 }
         except Exception as e:
             logger.error("Error getting video info: %s", e)
@@ -337,11 +342,43 @@ class YouTubeTranscriptService:
         )
 
         # Fetch source language transcript
+        requested_lang = source_lang
         source_transcript_raw = await self.fetch_transcript(
             url, source_lang, use_cookies
         )
         if not source_transcript_raw:
-            raise ValueError(f"Could not fetch transcript for language '{source_lang}'")
+            # The requested language has no caption track (e.g. asking for 'en'
+            # on a French video, where YouTube only offers the French original
+            # plus auto-translations). Fall back to the video's native language
+            # so we still return a usable transcript instead of a 400 — the
+            # caller can translate/summarize from the original.
+            native = (video_info.get("language") or "").split("-")[0]
+            manual = [s.split("-")[0] for s in (video_info.get("subtitle_langs") or [])]
+            fallbacks: List[str] = []
+            for cand in [native, *manual]:
+                if cand and cand != requested_lang and cand not in fallbacks:
+                    fallbacks.append(cand)
+
+            for cand in fallbacks:
+                logger.info(
+                    "No '%s' track; falling back to native language '%s'",
+                    requested_lang,
+                    cand,
+                )
+                source_transcript_raw = await self.fetch_transcript(
+                    url, cand, use_cookies
+                )
+                if source_transcript_raw:
+                    source_lang = cand
+                    logger.info("Using fallback source language '%s'", cand)
+                    break
+
+        if not source_transcript_raw:
+            raise ValueError(
+                f"Could not fetch a transcript for '{requested_lang}' "
+                f"(no matching or native-language track). "
+                f"Available subtitles: {available_subs[:15] or 'none'}"
+            )
 
         logger.info("Fetched source transcript: %d chars", len(source_transcript_raw))
 
