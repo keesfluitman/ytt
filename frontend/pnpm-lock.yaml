@@ -16,7 +16,7 @@ importers:
         version: 13.13.0
       carbon-preprocess-svelte:
         specifier: ^0.11.23
-        version: 0.11.36
+        version: 0.11.37
     devDependencies:
       '@eslint/compat':
         specifier: ^2.0.1
@@ -442,8 +442,8 @@ packages:
   carbon-icons-svelte@13.13.0:
     resolution: {integrity: sha512-9oBq+RjpCR8Zv5X4yFfPl7zWJb+4/qHTSuhCw8r7SfhC3PBBJiiHgZ5Dn73AjkR88CaOCNTmtSFVEyXplluhEQ==}
 
-  carbon-preprocess-svelte@0.11.36:
-    resolution: {integrity: sha512-UPDcXHbI0sj/nSf70n5iDBE3JsMxHhB+cn9exr2UxL/6ZsWqiOMAKjD3vu3Tj/XNdyMAkTuKxo1sMqKATGcoLA==}
+  carbon-preprocess-svelte@0.11.37:
+    resolution: {integrity: sha512-koopn13dVfKwyOTX0xfhBnFADcgKo234VzT+8SHKz5hO4hIdt3GgzYWitOPi17CEgjfph9+Jm4zNpLTM3i9Zqw==}
 
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
@@ -1387,7 +1387,7 @@ snapshots:
 
   carbon-icons-svelte@13.13.0: {}
 
-  carbon-preprocess-svelte@0.11.36: {}
+  carbon-preprocess-svelte@0.11.37: {}
 
   chokidar@4.0.3:
     dependencies:
