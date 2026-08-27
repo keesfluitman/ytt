@@ -35,7 +35,7 @@
 		"vite": "^8.0.0"
 	},
 	"dependencies": {
-		"carbon-components-svelte": "^0.109.0",
+		"carbon-components-svelte": "^0.111.0",
 		"carbon-icons-svelte": "^13.8.0",
 		"carbon-preprocess-svelte": "^0.11.23"
 	}
