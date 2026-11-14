@@ -28,7 +28,7 @@ services:
     user: "1000:1000"  # Change to match your user's UID:GID (99:99 on Unraid)
 
   libretranslate:
-    image: libretranslate/libretranslate:latest
+    image: libretranslate/libretranslate:latest@sha256:6f03f063a10d120cdb5986e8995d4524729d14125269bc6c49f791e49789aec8
     container_name: libretranslate
     restart: unless-stopped
     ports:
