@@ -2,6 +2,7 @@ import html
 import logging
 import re
 import json
+import tempfile
 from pathlib import Path
 from typing import Optional, Dict, List
 import asyncio
@@ -168,10 +169,15 @@ class YouTubeTranscriptService:
         auto_translate: bool = True,
     ) -> Optional[str]:
         """Fetch transcript for a specific language"""
-        # Clean temp directory
-        for f in self.temp_dir.glob("*"):
-            f.unlink()
+        # Own directory per call: parallel fetches must not see (or delete) each
+        # other's files.
+        with tempfile.TemporaryDirectory(dir=self.temp_dir) as tmp:
+            return await self._download_captions(url, language, use_cookies, Path(tmp))
 
+    async def _download_captions(
+        self, url: str, language: str, use_cookies: str, temp_dir: Path
+    ) -> Optional[str]:
+        """Run yt-dlp for one caption track and return its cleaned text"""
         # Build yt-dlp command
         cmd = [
             "yt-dlp",
@@ -183,7 +189,7 @@ class YouTubeTranscriptService:
             "--sub-format",
             "vtt",
             "-o",
-            str(self.temp_dir / "transcript"),
+            str(temp_dir / "transcript"),
         ]
 
         if use_cookies != "none":
@@ -198,9 +204,9 @@ class YouTubeTranscriptService:
             stdout, stderr = await result.communicate()
 
             # Find VTT file
-            vtt_files = list(self.temp_dir.glob(f"*.{language}.vtt"))
+            vtt_files = list(temp_dir.glob(f"*.{language}.vtt"))
             if not vtt_files:
-                vtt_files = list(self.temp_dir.glob("*.vtt"))
+                vtt_files = list(temp_dir.glob("*.vtt"))
 
             if vtt_files:
                 vtt_content = vtt_files[0].read_text()
