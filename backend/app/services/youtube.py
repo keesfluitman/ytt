@@ -2,8 +2,9 @@ import html
 import logging
 import re
 import json
+import tempfile
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 import asyncio
 from app.config import settings
 from app.services.history import HistoryService
@@ -166,12 +167,17 @@ class YouTubeTranscriptService:
         language: str = "en",
         use_cookies: str = "none",
         auto_translate: bool = True,
-    ) -> Optional[str]:
-        """Fetch transcript for a specific language"""
-        # Clean temp directory
-        for f in self.temp_dir.glob("*"):
-            f.unlink()
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Fetch one caption track; returns (text, yt-dlp error)"""
+        # Own directory per call: parallel fetches must not see (or delete) each
+        # other's files.
+        with tempfile.TemporaryDirectory(dir=self.temp_dir) as tmp:
+            return await self._download_captions(url, language, use_cookies, Path(tmp))
 
+    async def _download_captions(
+        self, url: str, language: str, use_cookies: str, temp_dir: Path
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Run yt-dlp for one caption track; returns (text, yt-dlp error)"""
         # Build yt-dlp command
         cmd = [
             "yt-dlp",
@@ -183,7 +189,7 @@ class YouTubeTranscriptService:
             "--sub-format",
             "vtt",
             "-o",
-            str(self.temp_dir / "transcript"),
+            str(temp_dir / "transcript"),
         ]
 
         if use_cookies != "none":
@@ -198,17 +204,49 @@ class YouTubeTranscriptService:
             stdout, stderr = await result.communicate()
 
             # Find VTT file
-            vtt_files = list(self.temp_dir.glob(f"*.{language}.vtt"))
+            vtt_files = list(temp_dir.glob(f"*.{language}.vtt"))
             if not vtt_files:
-                vtt_files = list(self.temp_dir.glob("*.vtt"))
+                vtt_files = list(temp_dir.glob("*.vtt"))
 
             if vtt_files:
                 vtt_content = vtt_files[0].read_text()
-                return self.clean_vtt(vtt_content)
+                return self.clean_vtt(vtt_content), None
+
+            errors = [
+                line
+                for line in stderr.decode(errors="replace").splitlines()
+                if line.startswith("ERROR:")
+            ]
+            if errors:
+                logger.warning("yt-dlp failed for track '%s': %s", language, errors[-1])
+                return None, errors[-1]
         except Exception as e:
             logger.error("Error fetching transcript: %s", e)
+            return None, str(e)
 
-        return None
+        return None, None
+
+    async def fetch_language(
+        self, url: str, language: str, use_cookies: str, manual_langs: List[str]
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Fetch the best caption track for a language; returns (text, error)
+
+        Manual captions come first. Otherwise '<lang>-orig' goes before '<lang>':
+        on multi-audio videos '<lang>' is also listed as a machine translation of
+        each dub, and yt-dlp then downloads one of those (HTTP 429).
+        """
+        tracks = [f"{language}-orig", language]
+        if language in manual_langs:
+            tracks.reverse()
+
+        error = None
+        for track in tracks:
+            text, track_error = await self.fetch_transcript(url, track, use_cookies)
+            if text:
+                return text, None
+            error = track_error or error
+
+        return None, error
 
     def clean_vtt(self, vtt_content: str) -> str:
         """Clean VTT subtitle content to plain text"""
@@ -343,8 +381,9 @@ class YouTubeTranscriptService:
 
         # Fetch source language transcript
         requested_lang = source_lang
-        source_transcript_raw = await self.fetch_transcript(
-            url, source_lang, use_cookies
+        subtitle_langs = video_info.get("subtitle_langs") or []
+        source_transcript_raw, fetch_error = await self.fetch_language(
+            url, source_lang, use_cookies, subtitle_langs
         )
         if not source_transcript_raw:
             # The requested language has no caption track (e.g. asking for 'en'
@@ -353,7 +392,7 @@ class YouTubeTranscriptService:
             # so we still return a usable transcript instead of a 400 — the
             # caller can translate/summarize from the original.
             native = (video_info.get("language") or "").split("-")[0]
-            manual = [s.split("-")[0] for s in (video_info.get("subtitle_langs") or [])]
+            manual = [s.split("-")[0] for s in subtitle_langs]
             fallbacks: List[str] = []
             for cand in [native, *manual]:
                 if cand and cand != requested_lang and cand not in fallbacks:
@@ -365,9 +404,10 @@ class YouTubeTranscriptService:
                     requested_lang,
                     cand,
                 )
-                source_transcript_raw = await self.fetch_transcript(
-                    url, cand, use_cookies
+                source_transcript_raw, cand_error = await self.fetch_language(
+                    url, cand, use_cookies, subtitle_langs
                 )
+                fetch_error = cand_error or fetch_error
                 if source_transcript_raw:
                     source_lang = cand
                     logger.info("Using fallback source language '%s'", cand)
@@ -375,8 +415,8 @@ class YouTubeTranscriptService:
 
         if not source_transcript_raw:
             raise ValueError(
-                f"Could not fetch a transcript for '{requested_lang}' "
-                f"(no matching or native-language track). "
+                f"Could not fetch a transcript for '{requested_lang}': "
+                f"{fetch_error or 'no matching or native-language track'}. "
                 f"Available subtitles: {available_subs[:15] or 'none'}"
             )
 
