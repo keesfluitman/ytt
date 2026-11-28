@@ -17,7 +17,7 @@ COPY frontend/ ./
 RUN pnpm run build
 
 # Stage 2: Production runtime with Python + FastAPI
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:7032841967d07aa3353905945dc186901c89b6b319c61425f4439f677a4a8a34
 
 # Install system dependencies:
 # - curl for the healthcheck
